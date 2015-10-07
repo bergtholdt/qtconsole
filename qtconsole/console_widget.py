@@ -20,12 +20,19 @@ from qtconsole.rich_text import HtmlExporter
 from qtconsole.util import MetaQObjectHasTraits, get_font, superQ
 from ipython_genutils.text import columnize
 from traitlets import Bool, Enum, Integer, Unicode
+from ipython_genutils.py3compat import PY3
 from .ansi_code_processor import QtAnsiCodeProcessor
 from .completion_widget import CompletionWidget
 from .completion_html import CompletionHtml
 from .completion_plain import CompletionPlain
 from .kill_ring import QtKillRing
 
+from io import BytesIO
+if PY3:
+    import pickle
+else:
+    import cPickle as pickle
+import json
 
 def is_letter_or_number(char):
     """ Returns whether the specified unicode character is a letter or a number.
@@ -372,6 +379,11 @@ class ConsoleWidget(MetaQObjectHasTraits('NewBase', (LoggingConfigurable, superQ
             # the user accidentally moving text around in the widget.
             e.setDropAction(QtCore.Qt.CopyAction)
             e.accept()
+        else:
+            md = e.mimeData()
+            for fmt in md.formats():
+                if fmt.startswith('application/x-ets-qt4-instance'):
+                    e.accept()
 
     def dragMoveEvent(self, e):
         if e.mimeData().hasUrls():
@@ -398,6 +410,33 @@ class ConsoleWidget(MetaQObjectHasTraits('NewBase', (LoggingConfigurable, superQ
             if self._in_buffer(cursor.position()):
                 text = e.mimeData().text()
                 self._insert_plain_text_into_buffer(cursor, text)
+        else:
+            md = e.mimeData()
+            for fmt in md.formats():
+                if fmt.startswith('application/x-ets-qt4-instance'):
+                    if fmt == 'application/x-ets-qt4-instance':
+                        # load pickled data from plab
+                        io = BytesIO(bytes(e.mimeData().data('application/x-ets-qt4-instance')))
+                        # ignore type
+                        pickle.load(io)
+                        # get payload
+                        pck = io.read()
+                        import codecs
+                        pck = codecs.encode(pck, "base64").decode()
+                        if PY3:
+                            self.execute('import pickle,codecs;dropped=pickle.loads(codecs.decode("""' + pck + '""".encode(), "base64"))',
+                                         hidden=True, interactive=False)
+                        else:
+                            self.execute('import cPickle;dropped=cPickle.loads("""' + pck + '""")',
+                                         hidden=True, interactive=False)
+
+                        # let the user know we dropped something
+                        text = 'dropped'
+                        cursor = self._control.textCursor()
+                        self._insert_plain_text_into_buffer(cursor, text)
+                    else:
+                        # non-pickled data, e.g. from mayavi
+                        self.execute(e.mimeData().data(fmt))
 
     def eventFilter(self, obj, event):
         """ Reimplemented to ensure a console-like behavior in the underlying
