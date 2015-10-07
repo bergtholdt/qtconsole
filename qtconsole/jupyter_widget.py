@@ -258,12 +258,17 @@ class JupyterWidget(IPythonWidget):
                     self._make_out_prompt(prompt_number, remote=not self.from_here(msg)),
                     before_prompt=True
                 )
-                text = data['text/plain']
-                # If the repr is multiline, make sure we start on a new line,
-                # so that its lines are aligned.
-                if "\n" in text and not self.output_sep.endswith("\n"):
-                    self._append_plain_text('\n', before_prompt=True)
-                self._append_plain_text(text + self.output_sep2, before_prompt=True)
+                if 'text/html' in data:
+                    text = data['text/html']
+                    self._append_plain_text('\n', True)
+                    self._append_html(text + self.output_sep2, True)
+                else:
+                    text = data['text/plain']
+                    # If the repr is multiline, make sure we start on a new line,
+                    # so that its lines are aligned.
+                    if "\n" in text and not self.output_sep.endswith("\n"):
+                        self._append_plain_text('\n', before_prompt=True)
+                    self._append_plain_text(text + self.output_sep2, before_prompt=True)
 
                 if not self.from_here(msg):
                     self._append_plain_text('\n', before_prompt=True)
@@ -279,7 +284,10 @@ class JupyterWidget(IPythonWidget):
             metadata = msg['content']['metadata']
             # In the regular JupyterWidget, we simply print the plain text
             # representation.
-            if 'text/plain' in data:
+            if 'text/html' in data:
+                html = data['text/html']
+                self._append_html(html, True)
+            elif 'text/plain' in data:
                 text = data['text/plain']
                 self._append_plain_text(text, True)
             # This newline seems to be needed for text and html output.
