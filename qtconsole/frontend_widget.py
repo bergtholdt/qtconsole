@@ -456,6 +456,7 @@ class FrontendWidget(HistoryConsoleWidget, BaseFrontendMixin):
         """ Handle error messages.
         """
         self._process_execute_error(msg)
+        self._show_interpreter_prompt()
 
     def _handle_input_request(self, msg):
         """ Handle requests for raw_input.
